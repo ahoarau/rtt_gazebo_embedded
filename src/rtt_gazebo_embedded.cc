@@ -46,9 +46,9 @@ gravity_vector(3)
     this->addConstant("gravity_vector",gravity_vector);//.doc("The gravity vector from gazebo, available after configure().");
 
     gazebo::printVersion();
-#ifdef GAZEBO_GREATER_6
-    gazebo::common::Console::SetQuiet(false);
-#endif
+// #ifdef GAZEBO_GREATER_6
+//     gazebo::common::Console::SetQuiet(false);
+// #endif
 }
 
 void RTTGazeboEmbedded::addPlugin(const std::string& filename)
@@ -60,16 +60,16 @@ void RTTGazeboEmbedded::setWorldFilePath(const std::string& file_path)
     if(std::ifstream(file_path))
         world_path = file_path;
     else
-        RTT::log(RTT::Error) << "File "<<file_path<<"does not exists."<<RTT::endlog();
+        log(RTT::Error) << "File "<<file_path<<"does not exists."<< endlog();
 }
 bool RTTGazeboEmbedded::configureHook()
 {
-    RTT::log(RTT::Info) << "Creating world at "<< world_path << RTT::endlog();
-
+    log(RTT::Info) << "Creating world at "<< world_path <<  endlog();
+    
     try{
         if(! gazebo::setupServer(argv))
         {
-            RTT::log(RTT::Error) << "Could not setupServer " << RTT::endlog();
+            log(RTT::Error) << "Could not setupServer " <<  endlog();
             return false;
         }
     }catch(...){}
@@ -82,7 +82,10 @@ bool RTTGazeboEmbedded::configureHook()
 
     if(!world) return false;
 
-    //RTT::log(RTT::Info) << "Binding world events" << RTT::endlog();
+    n_sensors = 0;
+    for(auto model : world->GetModels())
+        n_sensors += model->GetSensorCount();
+    //log(RTT::Info) << "Binding world events" <<  endlog();
     //world_begin =  gazebo::event::Events::ConnectWorldUpdateBegin(std::bind(&RTTGazeboEmbedded::WorldUpdateBegin,this));
     world_end = gazebo::event::Events::ConnectWorldUpdateEnd(std::bind(&RTTGazeboEmbedded::WorldUpdateEnd,this));
 
@@ -101,9 +104,9 @@ bool RTTGazeboEmbedded::startHook()
 }
 void RTTGazeboEmbedded::runWorldForever()
 {
-    std::cout <<"\x1B[32m[[--- Gazebo running ---]]\033[0m"<<std::endl;
+    cout <<"\x1B[32m[[--- Gazebo running ---]]\033[0m"<< endl;
     gazebo::runWorld(world, 0); // runs forever
-    std::cout <<"\x1B[32m[[--- Gazebo exiting runWorld() ---]]\033[0m"<<std::endl;
+    cout <<"\x1B[32m[[--- Gazebo exiting runWorld() ---]]\033[0m"<< endl;
 }
 void RTTGazeboEmbedded::updateHook()
 {
@@ -113,12 +116,12 @@ void RTTGazeboEmbedded::updateHook()
 }
 void RTTGazeboEmbedded::pauseSimulation()
 {
-    std::cout <<"\x1B[32m[[--- Pausing Simulation ---]]\033[0m"<<std::endl;
+    cout <<"\x1B[32m[[--- Pausing Simulation ---]]\033[0m"<< endl;
     gazebo::event::Events::pause.Signal(true);
 }
 void RTTGazeboEmbedded::unPauseSimulation()
 {
-    std::cout <<"\x1B[32m[[--- Unpausing Simulation ---]]\033[0m"<<std::endl;
+    cout <<"\x1B[32m[[--- Unpausing Simulation ---]]\033[0m"<< endl;
     gazebo::event::Events::pause.Signal(false);
 }
 
@@ -192,24 +195,53 @@ void RTTGazeboEmbedded::WorldUpdateEnd()
     //     if(getPeer(c.first)->isConfigured()
     //         && getPeer(c.first)->isRunning())
     //         c.second.world_end_handle.collect();
+    int tmp_sensor_count = 0;
+    for(auto model : world->GetModels())
+        tmp_sensor_count += model->GetSensorCount();
+    
+    do{
+        if(tmp_sensor_count != n_sensors)
+        {
+            if (!gazebo::sensors::load())
+            {
+                gzerr << "Unable to load sensors\n";
+                break;
+            }
+            if (!gazebo::sensors::init())
+            {
+                gzerr << "Unable to initialize sensors\n";
+                break;
+            }
+            gazebo::sensors::run_once(true);
+            gazebo::sensors::run_threads();
+            n_sensors = tmp_sensor_count;
+        }
+                
 
+    }while(false);
+    
+    if(n_sensors > 0)
+    {
+        gazebo::sensors::run_once();
+    }
+    
     if(use_rtt_sync)
         go_sem.wait();
 }
 void RTTGazeboEmbedded::cleanupHook()
 {
-    std::cout <<"\x1B[32m[[--- Stoping Simulation ---]]\033[0m"<<std::endl;
+    cout <<"\x1B[32m[[--- Stoping Simulation ---]]\033[0m"<< endl;
     gazebo::event::Events::sigInt.Signal();
 
 }
 RTTGazeboEmbedded::~RTTGazeboEmbedded()
 {
-    std::cout <<"\x1B[32m[[--- Gazebo Shutdown... ---]]\033[0m"<<std::endl;
+    cout <<"\x1B[32m[[--- Gazebo Shutdown... ---]]\033[0m"<< endl;
     //NOTE: This crashes as gazebo is running is a thread
 //     gazebo::shutdown();
 //     run_th.join();
 
-    std::cout <<"\x1B[32m[[--- Exiting Gazebo ---]]\033[0m"<<std::endl;
+    cout <<"\x1B[32m[[--- Exiting Gazebo ---]]\033[0m"<< endl;
 }
 
 ORO_CREATE_COMPONENT(RTTGazeboEmbedded)
