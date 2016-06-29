@@ -200,7 +200,7 @@ void RTTGazeboEmbedded::WorldUpdateEnd()
         tmp_sensor_count += model->GetSensorCount();
     
     do{
-        if(tmp_sensor_count != n_sensors)
+        if(tmp_sensor_count > n_sensors)
         {
             if (!gazebo::sensors::load())
             {
@@ -215,9 +215,10 @@ void RTTGazeboEmbedded::WorldUpdateEnd()
             gazebo::sensors::run_once(true);
             gazebo::sensors::run_threads();
             n_sensors = tmp_sensor_count;
+        }else{
+            // NOTE: same number, we do nothing, less it means we removed a model
+            n_sensors = tmp_sensor_count;
         }
-                
-
     }while(false);
     
     if(n_sensors > 0)
