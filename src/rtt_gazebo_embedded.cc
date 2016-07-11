@@ -65,7 +65,7 @@ void RTTGazeboEmbedded::setWorldFilePath(const std::string& file_path)
 bool RTTGazeboEmbedded::configureHook()
 {
     log(RTT::Info) << "Creating world at "<< world_path <<  endlog();
-    
+
     try{
         if(! gazebo::setupServer(argv))
         {
@@ -198,7 +198,7 @@ void RTTGazeboEmbedded::WorldUpdateEnd()
     int tmp_sensor_count = 0;
     for(auto model : world->GetModels())
         tmp_sensor_count += model->GetSensorCount();
-    
+
     do{
         if(tmp_sensor_count > n_sensors)
         {
@@ -220,29 +220,32 @@ void RTTGazeboEmbedded::WorldUpdateEnd()
             n_sensors = tmp_sensor_count;
         }
     }while(false);
-    
+
     if(n_sensors > 0)
     {
         gazebo::sensors::run_once();
     }
-    
+
     if(use_rtt_sync)
         go_sem.wait();
 }
 void RTTGazeboEmbedded::cleanupHook()
 {
+    unPauseSimulation();
     cout <<"\x1B[32m[[--- Stoping Simulation ---]]\033[0m"<< endl;
-    gazebo::event::Events::sigInt.Signal();
+    if(world)
+      world->Fini();
+    cout <<"\x1B[32m[[--- Gazebo Shutdown... ---]]\033[0m"<< endl;
+    //NOTE: This crashes as gazebo is running is a thread
+    gazebo::shutdown();
+    if(run_th.joinable())
+        run_th.join();
 
+    cout <<"\x1B[32m[[--- Exiting Gazebo ---]]\033[0m"<< endl;
 }
 RTTGazeboEmbedded::~RTTGazeboEmbedded()
 {
-    cout <<"\x1B[32m[[--- Gazebo Shutdown... ---]]\033[0m"<< endl;
-    //NOTE: This crashes as gazebo is running is a thread
-//     gazebo::shutdown();
-//     run_th.join();
 
-    cout <<"\x1B[32m[[--- Exiting Gazebo ---]]\033[0m"<< endl;
 }
 
 ORO_CREATE_COMPONENT(RTTGazeboEmbedded)
