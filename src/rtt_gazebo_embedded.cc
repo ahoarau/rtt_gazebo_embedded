@@ -232,6 +232,7 @@ void RTTGazeboEmbedded::WorldUpdateEnd()
 void RTTGazeboEmbedded::cleanupHook()
 {
     unPauseSimulation();
+    gazebo::runWorld(world, 1);
     cout <<"\x1B[32m[[--- Stoping Simulation ---]]\033[0m"<< endl;
     if(world)
       world->Fini();
