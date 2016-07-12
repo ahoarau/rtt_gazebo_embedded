@@ -86,7 +86,7 @@ bool RTTGazeboEmbedded::configureHook()
     for(auto model : world->GetModels())
         n_sensors += model->GetSensorCount();
     //log(RTT::Info) << "Binding world events" <<  endlog();
-    //world_begin =  gazebo::event::Events::ConnectWorldUpdateBegin(std::bind(&RTTGazeboEmbedded::WorldUpdateBegin,this));
+    world_begin =  gazebo::event::Events::ConnectWorldUpdateBegin(std::bind(&RTTGazeboEmbedded::WorldUpdateBegin,this));
     world_end = gazebo::event::Events::ConnectWorldUpdateEnd(std::bind(&RTTGazeboEmbedded::WorldUpdateEnd,this));
 
     return true;
