@@ -169,21 +169,6 @@ void RTTGazeboEmbedded::checkClientConnections()
 
 void RTTGazeboEmbedded::WorldUpdateBegin()
 {
-    checkClientConnections();
-
-    for(auto c : client_map)
-        if(getPeer(c.first)->isConfigured()
-            && getPeer(c.first)->isRunning())
-            c.second.world_begin_handle = c.second.world_begin.send();
-
-    for(auto c : client_map)
-        if(getPeer(c.first)->isConfigured()
-            && getPeer(c.first)->isRunning())
-            c.second.world_begin_handle.collect();
-}
-
-void RTTGazeboEmbedded::WorldUpdateEnd()
-{
     // checkClientConnections();
     //
     // for(auto c : client_map)
@@ -225,7 +210,10 @@ void RTTGazeboEmbedded::WorldUpdateEnd()
     {
         gazebo::sensors::run_once();
     }
+}
 
+void RTTGazeboEmbedded::WorldUpdateEnd()
+{
     if(use_rtt_sync)
         go_sem.wait();
 }
