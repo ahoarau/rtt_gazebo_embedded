@@ -15,7 +15,7 @@
 #include <rtt/os/Semaphore.hpp>
 
 #include <thread>
-  
+
 class RTTGazeboEmbedded : public RTT::TaskContext
 {
 public:
@@ -23,12 +23,20 @@ public:
     void addPlugin(const std::string& filename);
     void setWorldFilePath(const std::string& file_path);
     bool configureHook();
+//    bool spawnModel(const std::string& instanceName, const std::string& modelName);
+    bool spawnModel(const std::string& instanceName,
+    		const std::string& modelName, const int timeoutSec);
+    bool toggleDynamicsSimulation(const bool activate);
 
     ~RTTGazeboEmbedded();
 
 protected:
     void WorldUpdateBegin();
     void WorldUpdateEnd();
+    void OnPause(const bool _pause);
+
+    bool resetModelPoses();
+    bool resetWorld();
 
     bool startHook();
     void runWorldForever();
@@ -46,6 +54,7 @@ protected:
     gazebo::physics::WorldPtr world;
     gazebo::event::ConnectionPtr world_begin;
     gazebo::event::ConnectionPtr world_end;
+    gazebo::event::ConnectionPtr pause;
 
     std::vector<double> gravity_vector;
     std::vector<std::string> argv;
@@ -54,6 +63,10 @@ protected:
     RTT::os::Semaphore go_sem;
 
     std::thread run_th;
+
+    boost::atomic<bool> is_paused;
+
+    bool is_world_configured;
 
     // Useful for threaded updates
     struct ClientConnection
