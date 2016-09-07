@@ -164,7 +164,11 @@ bool RTTGazeboEmbedded::spawnModel(const std::string& instanceName,
             // handle sdf
             sdf::SDF root;
             root.SetFromString(model_xml);
-            sdf::ElementPtr nameElementSDF = root.Root()->GetElement("model");
+            #ifdef GAZEBO_GREATER_6
+              sdf::ElementPtr nameElementSDF = root.Root()->GetElement("model");
+            #else
+              sdf::ElementPtr nameElementSDF = root.root->GetElement("model");
+            #endif
             nameElementSDF->GetAttribute("name")->SetFromString(instanceName);
         }
     } else {
