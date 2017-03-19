@@ -2,6 +2,8 @@
 
 Simple [Gazebo stand alone](https://bitbucket.org/osrf/gazebo/src/d3b06088be22a15a25025a952414bffb8ff6aa2b/examples/stand_alone/custom_main/?at=default) object wrapped in an orocos component.
 
+[![Build Status](https://travis-ci.org/kuka-isir/rtt_gazebo_embedded.svg?branch=master)](https://travis-ci.org/kuka-isir/rtt_gazebo_embedded)
+
 ## Design
 
 A gazebo instance is launched with the ```RTTGazeboEmbedded``` component, which allows **any** components living in the same deployer to access the gazebo API (get world, model, time etc).
