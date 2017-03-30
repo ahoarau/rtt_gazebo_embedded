@@ -1,7 +1,7 @@
 <package>
   <name>rtt_gazebo_embedded</name>
   <version>1.0.0</version>
-  <license>BSD</license>
+  <license>CeCILL-C</license>
   <maintainer email="hoarau@isir.upmc.fr">Antoine Hoarau</maintainer>
   <description>
     Gazebo wrapped in an orocos component.
