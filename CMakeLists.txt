@@ -25,22 +25,14 @@ if(${GAZEBO_VERSION} AND ${GAZEBO_VERSION} GREATER 6)
     add_definitions(-DGAZEBO_GREATER_6)
 endif()
 
-find_package(PkgConfig REQUIRED)
-pkg_search_module(TINYXML REQUIRED tinyxml)
-if(NOT TINYXML_INCLUDE_DIR)
-	find_path("/usr/include" tinyxml.h)
-	find_library(TINYXML_LIBRARY NAMES tinyxml)
-	set(TINYXML_LIBRARIES ${TINYXML_LIBRARY})
-    set(TINYXML_INCLUDE_DIRS ${TINYXML_INCLUDE_DIR})
-    set(TINYXML_LIBRARY_DIR "/usr/lib/x86_64-linux-gnu")
-endif()
-message(STATUS "TINYXML_VERSION: ${TINYXML_VERSION}")
-include_directories(BEFORE SYSTEM ${TINYXML_INCLUDE_DIRS})
-link_directories(${TINYXML_LIBRARY_DIR})
-message(STATUS "TINYXML_LIBRARIES: ${TINYXML_LIBRARIES}")
-message(STATUS "TINYXML_LIBRARY_DIR: ${TINYXML_LIBRARY_DIR}")
-message(STATUS "TINYXML_INCLUDE_DIR: ${TINYXML_INCLUDE_DIRS}")
-message(STATUS "TINYXML_LIBRARY: ${TINYXML_LIBRARY}")
+find_path(TINYXML_INCLUDE_DIR NAMES tinyxml.h)
+find_library(TINYXML_LIBRARIES NAMES tinyxml)
+
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(TINYXML DEFAULT_MSG TINYXML_LIBRARIES TINYXML_INCLUDE_DIR)
+
+mark_as_advanced(TINYXML_INCLUDE_DIR TINYXML_LIBRARIES)
+set(TINYXML_INCLUDE_DIRS ${TINYXML_INCLUDE_DIR})
 
 include_directories(
     include
