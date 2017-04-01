@@ -191,8 +191,7 @@ bool RTTGazeboEmbedded::spawnModel(const std::string& instanceName,
 
     gazebo::common::Time timeout((double) timeoutSec);
 
-    boost::shared_ptr<gazebo::common::Timer> modelDeployTimer(
-            new gazebo::common::Timer());
+    auto modelDeployTimer(new gazebo::common::Timer());
 
     modelDeployTimer->Start();
     while (modelDeployTimer->GetRunning()) {
@@ -276,23 +275,27 @@ bool RTTGazeboEmbedded::startHook()
     }
     return true;
 }
+
 void RTTGazeboEmbedded::runWorldForever()
 {
     cout <<"\x1B[32m[[--- Gazebo running ---]]\033[0m"<< endl;
     gazebo::runWorld(world, 0); // runs forever
     cout <<"\x1B[32m[[--- Gazebo exiting runWorld() ---]]\033[0m"<< endl;
 }
+
 void RTTGazeboEmbedded::updateHook()
 {
     if(use_rtt_sync)
         go_sem.signal();
     return;
 }
+
 void RTTGazeboEmbedded::pauseSimulation()
 {
     cout <<"\x1B[32m[[--- Pausing Simulation ---]]\033[0m"<< endl;
     gazebo::event::Events::pause.Signal(true);
 }
+
 void RTTGazeboEmbedded::unPauseSimulation()
 {
     cout <<"\x1B[32m[[--- Unpausing Simulation ---]]\033[0m"<< endl;
@@ -307,55 +310,8 @@ void RTTGazeboEmbedded::stopHook()
     }
 }
 
-void RTTGazeboEmbedded::checkClientConnections()
-{
-    if(getPeerList().size() &&
-        getPeerList().size() != client_map.size())
-    {
-        for(auto p : getPeerList())
-        {
-            if(client_map.find(p) == client_map.end())
-            {
-                if(getPeer(p)->provides("gazebo") &&
-                    getPeer(p)->provides("gazebo")->hasOperation("WorldUpdateBegin") &&
-                    getPeer(p)->provides("gazebo")->hasOperation("WorldUpdateEnd")
-                )
-                {
-                    log(Info) << "Adding new client "<<p<<endlog();
-                    client_map[p] = ClientConnection(getPeer(p)->provides("gazebo")->getOperation("WorldUpdateBegin"),
-                                                    getPeer(p)->provides("gazebo")->getOperation("WorldUpdateEnd"));
-                }
-            }
-        }
-    }
-
-    auto it = std::begin(client_map);
-    while(it != std::end(client_map))
-    {
-        if(!it->second.world_end.ready() ||
-            !it->second.world_begin.ready())
-        {
-            log(Warning) << "Removing broken connection with client "<<it->first<<endlog();
-            it = client_map.erase(it);
-        }else
-            ++it;
-    }
-    return;
-}
-
 void RTTGazeboEmbedded::WorldUpdateBegin()
 {
-    // checkClientConnections();
-    //
-    // for(auto c : client_map)
-    //     if(getPeer(c.first)->isConfigured()
-    //         && getPeer(c.first)->isRunning())
-    //         c.second.world_end_handle = c.second.world_end.send();
-    //
-    // for(auto c : client_map)
-    //     if(getPeer(c.first)->isConfigured()
-    //         && getPeer(c.first)->isRunning())
-    //         c.second.world_end_handle.collect();
     int tmp_sensor_count = 0;
     for(auto model : world->GetModels())
         tmp_sensor_count += model->GetSensorCount();
@@ -393,6 +349,7 @@ void RTTGazeboEmbedded::WorldUpdateEnd()
     if(use_rtt_sync)
         go_sem.wait();
 }
+
 void RTTGazeboEmbedded::cleanupHook()
 {
     gazebo::event::Events::sigInt.Signal();
@@ -407,6 +364,7 @@ void RTTGazeboEmbedded::cleanupHook()
 
     cout <<"\x1B[32m[[--- Exiting Gazebo ---]]\033[0m"<< endl;
 }
+
 RTTGazeboEmbedded::~RTTGazeboEmbedded()
 {
 

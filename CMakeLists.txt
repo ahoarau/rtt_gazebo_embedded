@@ -1,21 +1,20 @@
-cmake_minimum_required(VERSION 2.8 FATAL_ERROR)
-
+cmake_minimum_required(VERSION 2.8)
 project(rtt_gazebo_embedded)
 
-set(CMAKE_BUILD_TYPE Release)
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release)
+endif()
 
-set(CMAKE_CXX_FLAGS "-std=c++11")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
-
-
-# okay, this is a truely scary hack. Apperantly there is a bug in rtt. 
+# okay, this is a truely scary hack. Apparently there is a bug in rtt. 
 if (CMAKE_SYSTEM_NAME MATCHES "Darwin")
     add_definitions(-DBOOST_DATE_TIME_POSIX_TIME_STD_CONFIG)
 endif()
 
 find_package(gazebo REQUIRED)
 
-find_package(OROCOS-RTT REQUIRED COMPONENTS rtt-scripting rtt-typekit)
+find_package(OROCOS-RTT REQUIRED COMPONENTS)
 if (NOT OROCOS-RTT_FOUND)
   message (FATAL_ERROR "\nCould not find Orocos-RTT. Please use the shell command\n 'source orocos_toolchain/env.sh' and then run cmake again.")
 endif()

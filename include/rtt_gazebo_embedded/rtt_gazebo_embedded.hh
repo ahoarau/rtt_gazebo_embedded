@@ -28,7 +28,7 @@ public:
     		const std::string& modelName, const int timeoutSec);
     bool toggleDynamicsSimulation(const bool activate);
 
-    ~RTTGazeboEmbedded();
+    virtual ~RTTGazeboEmbedded();
 
 protected:
     void WorldUpdateBegin();
@@ -48,8 +48,6 @@ protected:
     void pauseSimulation();
     void unPauseSimulation();
 
-    void checkClientConnections();
-
     std::string world_path;
     gazebo::physics::WorldPtr world;
     gazebo::event::ConnectionPtr world_begin;
@@ -64,25 +62,9 @@ protected:
 
     std::thread run_th;
 
-    boost::atomic<bool> is_paused;
+    std::atomic<bool> is_paused;
 
     bool is_world_configured;
-
-    // Useful for threaded updates
-    struct ClientConnection
-    {
-        ClientConnection(){}
-        ClientConnection(RTT::OperationCaller<void(void)> world_update_begin,
-                         RTT::OperationCaller<void(void)> world_update_end):
-                         world_begin(world_update_begin),
-                         world_end(world_update_end){}
-        RTT::OperationCaller<void(void)> world_begin;
-        RTT::OperationCaller<void(void)> world_end;
-        RTT::SendHandle<void(void)> world_begin_handle;
-        RTT::SendHandle<void(void)> world_end_handle;
-    };
-
-    std::map<std::string,ClientConnection> client_map;
     int n_sensors;
 };
 
