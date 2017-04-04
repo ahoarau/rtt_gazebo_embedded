@@ -1,4 +1,5 @@
 #include <rtt_gazebo_embedded/rtt_gazebo_embedded.hh>
+#include <tinyxml.h>
 
 using namespace RTT;
 using namespace RTT::os;
