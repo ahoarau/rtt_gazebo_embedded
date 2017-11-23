@@ -23,13 +23,10 @@ public:
     void addPlugin(const std::string& filename);
     void setWorldFilePath(const std::string& file_path);
     bool configureHook();
-//    bool spawnModel(const std::string& instanceName, const std::string& modelName);
     bool spawnModel(const std::string& instanceName,
-    		const std::string& modelName, const int timeoutSec);
+            const std::string& modelName, const int timeoutSec);
     bool toggleDynamicsSimulation(const bool activate);
-
-    virtual ~RTTGazeboEmbedded();
-
+    void listModels();
 protected:
     void WorldUpdateBegin();
     void WorldUpdateEnd();
@@ -47,6 +44,8 @@ protected:
 
     void pauseSimulation();
     void unPauseSimulation();
+    
+    bool insertModelFromURDF(const std::string& urdf_url);
 
     std::string world_path;
     gazebo::physics::WorldPtr world;
@@ -57,15 +56,16 @@ protected:
     std::vector<double> gravity_vector;
     std::vector<std::string> argv;
     std::atomic<bool> stop_sensor_th;
-    bool use_rtt_sync;
+    bool use_rtt_sync = false;
     RTT::os::Semaphore go_sem;
 
     std::thread run_th;
 
     std::atomic<bool> is_paused;
 
-    bool is_world_configured;
-    int n_sensors;
+    bool is_world_configured = false;
+    int n_sensors = 0;
+    double sim_step_dt_ = 0;
 };
 
 #endif

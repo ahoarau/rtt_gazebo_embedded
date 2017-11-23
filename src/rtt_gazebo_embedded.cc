@@ -35,23 +35,26 @@ namespace gazebo{
 RTTGazeboEmbedded::RTTGazeboEmbedded(const std::string& name):
 TaskContext(name),
 world_path("worlds/empty.world"),
-use_rtt_sync(false),
 go_sem(0),
-is_world_configured(false),
 is_paused(true),
 gravity_vector(3)
 {
-    log(Info) << "Creating " << name <<" with gazebo embedded !" << endlog();
     this->addProperty("use_rtt_sync",use_rtt_sync).doc("At world end, Gazebo waits on rtt's updatehook to finish (setPeriod(1) will make gazebo runs at 1Hz)");
     this->addProperty("world_path",world_path).doc("The path to the .world file.");
+    this->addProperty("sim_step_dt",sim_step_dt_).doc("The amount of time in seconds simulated at each time step (usually 1ms)");
     this->addOperation("setWorldFilePath",&RTTGazeboEmbedded::setWorldFilePath,this,RTT::OwnThread).doc("Sets the file to the world file");
-    this->addOperation("add_plugin",&RTTGazeboEmbedded::addPlugin,this,RTT::OwnThread).doc("The path to a plugin file.");
+    this->addOperation("add_plugin",&RTTGazeboEmbedded::addPlugin,this,RTT::OwnThread).doc("DEPRECATED, use addPlugin The path to a plugin file.");
+    this->addOperation("addPlugin",&RTTGazeboEmbedded::addPlugin,this,RTT::OwnThread).doc("The path to a plugin file.");
     this->addProperty("argv",argv).doc("argv passed to the deployer's main.");
     this->addConstant("gravity_vector",gravity_vector);//.doc("The gravity vector from gazebo, available after configure().");
-    this->addOperation("spawn_model", &RTTGazeboEmbedded::spawnModel, this,
+    this->addOperation("spawnModel", &RTTGazeboEmbedded::spawnModel, this,
             RTT::OwnThread).doc(
             "The instance name of the model to be spawned and then the model name.");
-
+            
+    this->addOperation("listModels", &RTTGazeboEmbedded::listModels, this,
+            RTT::OwnThread).doc(
+            "List all models in the world");
+            
     this->addOperation("resetModelPoses", &RTTGazeboEmbedded::resetModelPoses,
             this, RTT::OwnThread).doc("Resets the model poses.");
 
@@ -61,13 +64,107 @@ gravity_vector(3)
     this->addOperation("toggleDynamicsSimulation",
             &RTTGazeboEmbedded::toggleDynamicsSimulation, this, RTT::ClientThread).doc(
             "Activate or Deactivate the physics engine of Gazebo.");
+
+    this->addOperation("insertModelFromURDF",
+            &RTTGazeboEmbedded::insertModelFromURDF, this, RTT::OwnThread).doc(
+            "Insert a model from URDF. You have to make sur the meshes can be loaded.\n\n export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:/path/to/the/package/containing_meshes");
+    
     gazebo::printVersion();
+}
+
+void RTTGazeboEmbedded::listModels()
+{
+    if (!world)
+    {
+        RTT::log(RTT::Warning)
+                << "The world pointer was not yet retrieved. This needs to be done first, in order to be able to call this operation."
+                << RTT::endlog();
+        return;
+    }
+    for(auto model : world->GetModels())
+    {
+        std::cout << "  - " << model->GetName() << std::endl;
+    }
+}
+
+bool RTTGazeboEmbedded::insertModelFromURDF(const std::string& urdf_url)
+{
+    if (!world)
+    {
+        RTT::log(RTT::Warning)
+                << "The world pointer was not yet retrieved. This needs to be done first, in order to be able to call this operation."
+                << RTT::endlog();
+        return false;
+    }
+    
+    log(RTT::Info) << "Inserting model file " << urdf_url << endlog();
+
+    TiXmlDocument doc(urdf_url);
+    doc.LoadFile();
+    std::string robot_name;
+    
+    TiXmlElement* robotElement = doc.FirstChildElement("robot");
+    
+    if(robotElement)
+    {
+        if (robotElement->Attribute("name"))
+        {
+            robot_name = robotElement->Attribute("name");
+        }
+        else
+        {
+            RTT::log(RTT::Warning)
+                << "Could not get the robot name in the URDF " << urdf_url
+                << RTT::endlog();
+        return false;
+        }
+    }
+    else
+    {
+        RTT::log(RTT::Warning)
+                << "Could not get the robot tag in the URDF " << urdf_url
+                << RTT::endlog();
+        return false;
+    }
+
+    if (robot_name.empty())
+    {
+        RTT::log(RTT::Warning)
+                << "Could not read robot name"
+                << RTT::endlog();
+        return false;
+    }
+    
+    TiXmlPrinter printer;
+    printer.SetIndent( "    " );
+    doc.Accept( &printer );
+    std::string xmltext = printer.CStr();
+
+    log(RTT::Info) << "Inserting model " << robot_name << " in the current world" << endlog();
+    world->InsertModelString(xmltext);
+
+    log(RTT::Info) << "To make it work you need first to set the path to the meshes : (ex path to lwr_description)" << endlog();
+    log(RTT::Info) << "export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:/path/to/the/package/containing_meshes" << endlog();
+    log(RTT::Info) << "----> otherwise Gazebo won't be able to read the URDF and will get stuck at this message !" << endlog();
+
+    for (size_t i = 0; i < 10; i++)
+    {
+        gazebo::runWorld(world,1);
+        if(world->GetModel(robot_name))
+        {
+            log(RTT::Info) << "Model " << robot_name << " successfully loaded" << endlog();
+            return true;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
+    return false;
 }
 
 void RTTGazeboEmbedded::addPlugin(const std::string& filename)
 {
     gazebo::addPlugin(filename);
 }
+
 void RTTGazeboEmbedded::setWorldFilePath(const std::string& file_path)
 {
     if(std::ifstream(file_path))
@@ -242,7 +339,8 @@ bool RTTGazeboEmbedded::configureHook()
     }catch(...){}
 
     world = gazebo::loadWorld(world_path);
-
+    sim_step_dt_ = world->Physics()->GetMaxStepSize();
+    
     gravity_vector[0] = world->GetPhysicsEngine()->GetGravity()[0];
     gravity_vector[1] = world->GetPhysicsEngine()->GetGravity()[1];
     gravity_vector[2] = world->GetPhysicsEngine()->GetGravity()[2];
@@ -313,6 +411,8 @@ void RTTGazeboEmbedded::stopHook()
 
 void RTTGazeboEmbedded::WorldUpdateBegin()
 {
+    sim_step_dt_ = world->Physics()->GetMaxStepSize();
+    
     int tmp_sensor_count = 0;
     for(auto model : world->GetModels())
         tmp_sensor_count += model->GetSensorCount();
@@ -364,11 +464,6 @@ void RTTGazeboEmbedded::cleanupHook()
         run_th.join();
 
     cout <<"\x1B[32m[[--- Exiting Gazebo ---]]\033[0m"<< endl;
-}
-
-RTTGazeboEmbedded::~RTTGazeboEmbedded()
-{
-
 }
 
 ORO_CREATE_COMPONENT(RTTGazeboEmbedded)
