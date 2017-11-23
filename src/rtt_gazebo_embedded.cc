@@ -411,7 +411,7 @@ void RTTGazeboEmbedded::stopHook()
 
 void RTTGazeboEmbedded::WorldUpdateBegin()
 {
-    sim_step_dt_ = world->Physics()->GetMaxStepSize();
+    sim_step_dt_ = world->GetPhysicsEngine()->GetMaxStepSize();
     
     int tmp_sensor_count = 0;
     for(auto model : world->GetModels())
