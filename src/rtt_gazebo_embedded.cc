@@ -339,7 +339,7 @@ bool RTTGazeboEmbedded::configureHook()
     }catch(...){}
 
     world = gazebo::loadWorld(world_path);
-    sim_step_dt_ = world->Physics()->GetMaxStepSize();
+    sim_step_dt_ = world->GetPhysicsEngine()->GetMaxStepSize();
     
     gravity_vector[0] = world->GetPhysicsEngine()->GetGravity()[0];
     gravity_vector[1] = world->GetPhysicsEngine()->GetGravity()[1];
