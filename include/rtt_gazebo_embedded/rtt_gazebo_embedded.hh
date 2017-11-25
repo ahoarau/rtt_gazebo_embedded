@@ -27,6 +27,8 @@ public:
             const std::string& modelName, const int timeoutSec);
     bool toggleDynamicsSimulation(const bool activate);
     void listModels();
+    std::vector<double> getGravity();
+    double getMaxStepSize();
 protected:
     void WorldUpdateBegin();
     void WorldUpdateEnd();

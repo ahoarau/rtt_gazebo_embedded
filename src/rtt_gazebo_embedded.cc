@@ -46,10 +46,18 @@ gravity_vector(3)
     this->addOperation("add_plugin",&RTTGazeboEmbedded::addPlugin,this,RTT::OwnThread).doc("DEPRECATED, use addPlugin The path to a plugin file.");
     this->addOperation("addPlugin",&RTTGazeboEmbedded::addPlugin,this,RTT::OwnThread).doc("The path to a plugin file.");
     this->addProperty("argv",argv).doc("argv passed to the deployer's main.");
-    this->addConstant("gravity_vector",gravity_vector);//.doc("The gravity vector from gazebo, available after configure().");
+    this->addAttribute("gravity_vector",gravity_vector);//.doc("The gravity vector from gazebo, available after configure().");
     this->addOperation("spawnModel", &RTTGazeboEmbedded::spawnModel, this,
             RTT::OwnThread).doc(
             "The instance name of the model to be spawned and then the model name.");
+            
+    this->addOperation("getGravity", &RTTGazeboEmbedded::getGravity, this,
+            RTT::OwnThread).doc(
+            "Get the gravity vector");
+            
+    this->addOperation("getMaxStepSize", &RTTGazeboEmbedded::getMaxStepSize, this,
+            RTT::OwnThread).doc(
+            "Get the step size for the simulation (1ms default)");
             
     this->addOperation("listModels", &RTTGazeboEmbedded::listModels, this,
             RTT::OwnThread).doc(
@@ -72,11 +80,40 @@ gravity_vector(3)
     gazebo::printVersion();
 }
 
+std::vector<double> RTTGazeboEmbedded::getGravity()
+{
+    if (!world)
+    {
+        RTT::log(RTT::Error)
+                << "The world pointer was not yet retrieved. This needs to be done first, in order to be able to call this operation."
+                << RTT::endlog();
+        return {0,0,0};
+    }
+    auto grav = world->GetPhysicsEngine()->GetGravity();
+    gravity_vector[0] = grav[0];
+    gravity_vector[1] = grav[1];
+    gravity_vector[2] = grav[2];
+    return gravity_vector;
+}
+
+double RTTGazeboEmbedded::getMaxStepSize()
+{
+    if (!world)
+    {
+        RTT::log(RTT::Error)
+                << "The world pointer was not yet retrieved. This needs to be done first, in order to be able to call this operation."
+                << RTT::endlog();
+        return 0;
+    }
+    sim_step_dt_ = world->GetPhysicsEngine()->GetMaxStepSize();
+    return sim_step_dt_;
+}
+
 void RTTGazeboEmbedded::listModels()
 {
     if (!world)
     {
-        RTT::log(RTT::Warning)
+        RTT::log(RTT::Error)
                 << "The world pointer was not yet retrieved. This needs to be done first, in order to be able to call this operation."
                 << RTT::endlog();
         return;
@@ -91,7 +128,7 @@ bool RTTGazeboEmbedded::insertModelFromURDF(const std::string& urdf_url)
 {
     if (!world)
     {
-        RTT::log(RTT::Warning)
+        RTT::log(RTT::Error)
                 << "The world pointer was not yet retrieved. This needs to be done first, in order to be able to call this operation."
                 << RTT::endlog();
         return false;
@@ -173,28 +210,32 @@ void RTTGazeboEmbedded::setWorldFilePath(const std::string& file_path)
         log(RTT::Error) << "File "<<file_path<<"does not exists."<< endlog();
 }
 
-bool RTTGazeboEmbedded::resetModelPoses() {
-    if (world) {
-        this->world->ResetEntities(gazebo::physics::Base::MODEL);
-        return true;
-    } else {
-        RTT::log(RTT::Warning)
+bool RTTGazeboEmbedded::resetModelPoses() 
+{
+    if (!world)
+    {
+        RTT::log(RTT::Error)
                 << "The world pointer was not yet retrieved. This needs to be done first, in order to be able to call this operation."
                 << RTT::endlog();
         return false;
     }
+    
+    this->world->ResetEntities(gazebo::physics::Base::MODEL);
+    return true;
 }
 
-bool RTTGazeboEmbedded::resetWorld() {
-    if (world) {
-        this->world->Reset();
-        return true;
-    } else {
-        RTT::log(RTT::Warning)
+bool RTTGazeboEmbedded::resetWorld() 
+{
+    if (!world)
+    {
+        RTT::log(RTT::Error)
                 << "The world pointer was not yet retrieved. This needs to be done first, in order to be able to call this operation."
                 << RTT::endlog();
         return false;
     }
+
+    this->world->Reset();
+    return true;
 }
 
 void RTTGazeboEmbedded::OnPause(const bool _pause) {
@@ -212,11 +253,13 @@ void RTTGazeboEmbedded::OnPause(const bool _pause) {
 }
 
 bool RTTGazeboEmbedded::spawnModel(const std::string& instanceName,
-        const std::string& modelName, const int timeoutSec) {
-    if (!is_world_configured) {
-        std::cout
-                << "\x1B[33m[[--- You have to configure this component first! ---]]\033[0m"
-                << std::endl;
+        const std::string& modelName, const int timeoutSec)
+{
+    if (!world)
+    {
+        RTT::log(RTT::Error)
+                << "The world pointer was not yet retrieved. This needs to be done first, in order to be able to call this operation."
+                << RTT::endlog();
         return false;
     }
 
@@ -315,11 +358,13 @@ bool RTTGazeboEmbedded::spawnModel(const std::string& instanceName,
 
 }
 
-bool RTTGazeboEmbedded::toggleDynamicsSimulation(const bool activate) {
-    if (!is_world_configured) {
-        std::cout
-                << "\x1B[33m[[--- You have to configure this component first! ---]]\033[0m"
-                << std::endl;
+bool RTTGazeboEmbedded::toggleDynamicsSimulation(const bool activate)
+{
+    if (!world)
+    {
+        RTT::log(RTT::Error)
+                << "The world pointer was not yet retrieved. This needs to be done first, in order to be able to call this operation."
+                << RTT::endlog();
         return false;
     }
     world->EnablePhysicsEngine(activate);
@@ -339,15 +384,20 @@ bool RTTGazeboEmbedded::configureHook()
     }catch(...){}
 
     world = gazebo::loadWorld(world_path);
+
+    if (!world)
+    {
+        RTT::log(RTT::Error)
+                << "Could not load the world."
+                << RTT::endlog();
+        return false;
+    }
+    
     sim_step_dt_ = world->GetPhysicsEngine()->GetMaxStepSize();
     
     gravity_vector[0] = world->GetPhysicsEngine()->GetGravity()[0];
     gravity_vector[1] = world->GetPhysicsEngine()->GetGravity()[1];
     gravity_vector[2] = world->GetPhysicsEngine()->GetGravity()[2];
-
-    is_world_configured = true;
-
-    if(!world) return false;
 
     n_sensors = 0;
     for(auto model : world->GetModels())
@@ -411,8 +461,6 @@ void RTTGazeboEmbedded::stopHook()
 
 void RTTGazeboEmbedded::WorldUpdateBegin()
 {
-    sim_step_dt_ = world->GetPhysicsEngine()->GetMaxStepSize();
-    
     int tmp_sensor_count = 0;
     for(auto model : world->GetModels())
         tmp_sensor_count += model->GetSensorCount();
