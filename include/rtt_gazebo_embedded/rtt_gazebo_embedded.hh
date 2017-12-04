@@ -46,8 +46,10 @@ protected:
 
     void pauseSimulation();
     void unPauseSimulation();
-    
+
     bool insertModelFromURDF(const std::string& urdf_url);
+    bool insertModelFromURDFString(const std::string& urdf_str);
+    bool insertModelFromTinyXML(void * tiny_xml_doc);
 
     std::string world_path;
     gazebo::physics::WorldPtr world;

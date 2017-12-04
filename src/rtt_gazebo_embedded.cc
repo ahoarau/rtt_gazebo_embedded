@@ -50,19 +50,19 @@ gravity_vector(3)
     this->addOperation("spawnModel", &RTTGazeboEmbedded::spawnModel, this,
             RTT::OwnThread).doc(
             "The instance name of the model to be spawned and then the model name.");
-            
+
     this->addOperation("getGravity", &RTTGazeboEmbedded::getGravity, this,
             RTT::OwnThread).doc(
             "Get the gravity vector");
-            
+
     this->addOperation("getMaxStepSize", &RTTGazeboEmbedded::getMaxStepSize, this,
             RTT::OwnThread).doc(
             "Get the step size for the simulation (1ms default)");
-            
+
     this->addOperation("listModels", &RTTGazeboEmbedded::listModels, this,
             RTT::OwnThread).doc(
             "List all models in the world");
-            
+
     this->addOperation("resetModelPoses", &RTTGazeboEmbedded::resetModelPoses,
             this, RTT::OwnThread).doc("Resets the model poses.");
 
@@ -76,7 +76,12 @@ gravity_vector(3)
     this->addOperation("insertModelFromURDF",
             &RTTGazeboEmbedded::insertModelFromURDF, this, RTT::OwnThread).doc(
             "Insert a model from URDF. You have to make sur the meshes can be loaded.\n\n export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:/path/to/the/package/containing_meshes");
-    
+
+
+    this->addOperation("insertModelFromURDFString",
+            &RTTGazeboEmbedded::insertModelFromURDFString, this, RTT::OwnThread).doc(
+            "Insert a model from a URDF string (from /robot_description for example). You have to make sur the meshes can be loaded.\n\n export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:/path/to/the/package/containing_meshes");
+
     gazebo::printVersion();
 }
 
@@ -133,15 +138,41 @@ bool RTTGazeboEmbedded::insertModelFromURDF(const std::string& urdf_url)
                 << RTT::endlog();
         return false;
     }
-    
+
     log(RTT::Info) << "Inserting model file " << urdf_url << endlog();
 
     TiXmlDocument doc(urdf_url);
     doc.LoadFile();
+    return insertModelFromTinyXML(static_cast<void *>(&doc));
+}
+
+bool RTTGazeboEmbedded::insertModelFromURDFString(const std::string& urdf_str)
+{
+    if (!world)
+    {
+        RTT::log(RTT::Error)
+                << "The world pointer was not yet retrieved. This needs to be done first, in order to be able to call this operation."
+                << RTT::endlog();
+        return false;
+    }
+    TiXmlDocument doc;
+    doc.Parse(urdf_str.c_str());
+    return insertModelFromTinyXML(static_cast<void *>(&doc));
+}
+
+bool RTTGazeboEmbedded::insertModelFromTinyXML(void * tiny_xml_doc)
+{
+    if(!tiny_xml_doc)
+    {
+        RTT::log(RTT::Error) << "Document provided is null" << RTT::endlog();
+        return false;
+    }
+
+    TiXmlDocument * doc = static_cast<TiXmlDocument*>(tiny_xml_doc);
     std::string robot_name;
-    
-    TiXmlElement* robotElement = doc.FirstChildElement("robot");
-    
+
+    TiXmlElement* robotElement = doc->FirstChildElement("robot");
+
     if(robotElement)
     {
         if (robotElement->Attribute("name"))
@@ -151,7 +182,7 @@ bool RTTGazeboEmbedded::insertModelFromURDF(const std::string& urdf_url)
         else
         {
             RTT::log(RTT::Warning)
-                << "Could not get the robot name in the URDF " << urdf_url
+                << "Could not get the robot name in the URDF "
                 << RTT::endlog();
         return false;
         }
@@ -159,7 +190,7 @@ bool RTTGazeboEmbedded::insertModelFromURDF(const std::string& urdf_url)
     else
     {
         RTT::log(RTT::Warning)
-                << "Could not get the robot tag in the URDF " << urdf_url
+                << "Could not get the robot tag in the URDF "
                 << RTT::endlog();
         return false;
     }
@@ -171,10 +202,10 @@ bool RTTGazeboEmbedded::insertModelFromURDF(const std::string& urdf_url)
                 << RTT::endlog();
         return false;
     }
-    
+
     TiXmlPrinter printer;
     printer.SetIndent( "    " );
-    doc.Accept( &printer );
+    doc->Accept( &printer );
     std::string xmltext = printer.CStr();
 
     log(RTT::Info) << "Inserting model " << robot_name << " in the current world" << endlog();
@@ -195,6 +226,7 @@ bool RTTGazeboEmbedded::insertModelFromURDF(const std::string& urdf_url)
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
     return false;
+
 }
 
 void RTTGazeboEmbedded::addPlugin(const std::string& filename)
@@ -210,7 +242,7 @@ void RTTGazeboEmbedded::setWorldFilePath(const std::string& file_path)
         log(RTT::Error) << "File "<<file_path<<"does not exists."<< endlog();
 }
 
-bool RTTGazeboEmbedded::resetModelPoses() 
+bool RTTGazeboEmbedded::resetModelPoses()
 {
     if (!world)
     {
@@ -219,12 +251,12 @@ bool RTTGazeboEmbedded::resetModelPoses()
                 << RTT::endlog();
         return false;
     }
-    
+
     this->world->ResetEntities(gazebo::physics::Base::MODEL);
     return true;
 }
 
-bool RTTGazeboEmbedded::resetWorld() 
+bool RTTGazeboEmbedded::resetWorld()
 {
     if (!world)
     {
@@ -392,9 +424,9 @@ bool RTTGazeboEmbedded::configureHook()
                 << RTT::endlog();
         return false;
     }
-    
+
     sim_step_dt_ = world->GetPhysicsEngine()->GetMaxStepSize();
-    
+
     gravity_vector[0] = world->GetPhysicsEngine()->GetGravity()[0];
     gravity_vector[1] = world->GetPhysicsEngine()->GetGravity()[1];
     gravity_vector[2] = world->GetPhysicsEngine()->GetGravity()[2];
