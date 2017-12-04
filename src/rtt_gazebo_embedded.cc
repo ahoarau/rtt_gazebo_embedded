@@ -413,7 +413,10 @@ bool RTTGazeboEmbedded::configureHook()
             log(RTT::Error) << "Could not setupServer " <<  endlog();
             return false;
         }
-    }catch(...){}
+    }catch(...){
+        log(RTT::Error) << "Exception while setupping the world "  <<  endlog();
+        return false;
+    }
 
     world = gazebo::loadWorld(world_path);
 
