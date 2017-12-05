@@ -209,22 +209,49 @@ bool RTTGazeboEmbedded::insertModelFromTinyXML(void * tiny_xml_doc)
     std::string xmltext = printer.CStr();
 
     log(RTT::Info) << "Inserting model " << robot_name << " in the current world" << endlog();
+    log(RTT::Debug) << "Inserting URDF String " << xmltext << endlog();
     world->InsertModelString(xmltext);
 
-    log(RTT::Info) << "To make it work you need first to set the path to the meshes : (ex path to lwr_description)" << endlog();
-    log(RTT::Info) << "export GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:/path/to/the/package/containing_meshes" << endlog();
-    log(RTT::Info) << "----> otherwise Gazebo won't be able to read the URDF and will get stuck at this message !" << endlog();
+    std::atomic<bool> do_exit(false);
+
+    auto th = std::thread([&]()
+    {
+        int i=40;
+        while(--i)
+        {
+            if(do_exit)
+                return;
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+
+        std::cout << "\x1B[33mTo make it work you need first to set the path to the repo containing the meshes : (ex path ABOVE my_robot_description)\e[0m" << std::endl;
+        std::cout << "\x1B[33mexport GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH:/path/to/the/package_above\e[0m" << std::endl;
+        std::cout << "\x1B[33m----> otherwise Gazebo won't be able to read the URDF and will get stuck at this message !\e[0m" << std::endl;
+    });
+    // make the service call to pause gazebo
+    // bool is_paused = world->IsPaused();
+    // if (!is_paused) world->SetPaused(true);
 
     for (size_t i = 0; i < 10; i++)
     {
+        log(RTT::Debug) << "Runing the world once... " << endlog();
         gazebo::runWorld(world,1);
+        log(RTT::Debug) << "Done runing the world once, verifying if the model is correctly loaded..." << endlog();
         if(world->GetModel(robot_name))
         {
+            do_exit = true;
+            if(th.joinable())
+                th.join();
             log(RTT::Info) << "Model " << robot_name << " successfully loaded" << endlog();
+            // resume paused state before this call
+            // world->SetPaused(is_paused);
             return true;
         }
+        log(RTT::Debug) << "Model not yet loaded, trial " << i <<"/10" << endlog();
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
+    // resume paused state before this call
+    // world->SetPaused(is_paused);
     return false;
 
 }
