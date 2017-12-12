@@ -40,8 +40,8 @@ gazebo.argv = strings("--verbose","--record_encoding=zlib")
 gazebo.world_path = "/usr/share/gazebo-7/worlds/pr2.world"
 
 # Load the ROS plugins
-gazebo.add_plugin("libgazebo_ros_paths_plugin.so")
-gazebo.add_plugin("libgazebo_ros_api_plugin.so")
+gazebo.addPlugin("libgazebo_ros_paths_plugin.so")
+gazebo.addPlugin("libgazebo_ros_api_plugin.so")
 
 
 gazebo.configure()
