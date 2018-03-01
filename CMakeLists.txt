@@ -13,11 +13,11 @@ if (CMAKE_SYSTEM_NAME MATCHES "Darwin")
 endif()
 
 find_package(gazebo REQUIRED)
-if(NOT ${GAZEBO_MAJOR_VERSION})
+if(NOT ${gazebo_VERSION_MAJOR})
     # Old gazebo version (<=indigo)
-    set(GAZEBO_VERSION_MAJOR 5)
+    set(gazebo_VERSION_MAJOR 5)
 endif()
-add_definitions(-DGAZEBO_MAJOR_VERSION=${GAZEBO_MAJOR_VERSION})
+add_definitions(-DGAZEBO_MAJOR_VERSION=${gazebo_VERSION_MAJOR})
 
 
 find_package(OROCOS-RTT REQUIRED COMPONENTS)
