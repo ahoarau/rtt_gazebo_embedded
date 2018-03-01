@@ -14,14 +14,17 @@ public:
     {
         gazebo::printVersion();
         // Connecting Events
-        world_begin =  gazebo::event::Events::ConnectWorldUpdateBegin(std::bind(&ModelPluginExample::WorldUpdateBegin,this));
-        world_end   = gazebo::event::Events::ConnectWorldUpdateEnd(std::bind(&ModelPluginExample::WorldUpdateEnd,this));
+        world_begin =  gazebo::event::Events::ConnectWorldUpdateBegin(boost::bind(&ModelPluginExample::WorldUpdateBegin,this));
+        world_end   = gazebo::event::Events::ConnectWorldUpdateEnd(boost::bind(&ModelPluginExample::WorldUpdateEnd,this));
     }
 
     bool configureHook()
     {
+#if GAZEBO_MAJOR_VERSION > 8
+        model = gazebo::physics::WorldPtr()->ModelByName(getName());
+#else
         model = gazebo::physics::get_world()->GetModel(getName());
-        
+#endif
         return bool(model);
     }
 

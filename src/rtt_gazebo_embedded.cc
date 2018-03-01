@@ -5,7 +5,7 @@ using namespace RTT;
 using namespace RTT::os;
 using namespace std;
 
-#ifndef GAZEBO_GREATER_6
+#if GAZEBO_MAJOR_VERSION < 6
 struct g_vectorStringDup
 {
   char *operator()(const std::string &_s)
@@ -32,21 +32,21 @@ namespace gazebo{
 }
 #endif
 
-RTTGazeboEmbedded::RTTGazeboEmbedded(const std::string& name):
-TaskContext(name),
-world_path("worlds/empty.world"),
-go_sem(0),
-is_paused(true),
-gravity_vector(3)
+RTTGazeboEmbedded::RTTGazeboEmbedded(const std::string& name)
+: TaskContext(name)
+// , world_path_("worlds/empty.world")
+// , go_sem_(0)
+// , is_paused(true)
+// , gravity_vector_(3,0)
 {
-    this->addProperty("use_rtt_sync",use_rtt_sync).doc("At world end, Gazebo waits on rtt's updatehook to finish (setPeriod(1) will make gazebo runs at 1Hz)");
-    this->addProperty("world_path",world_path).doc("The path to the .world file.");
+    this->addProperty("use_rtt_sync",use_rtt_sync_).doc("At world end, Gazebo waits on rtt's updatehook to finish (setPeriod(1) will make gazebo runs at 1Hz)");
+    this->addProperty("world_path",world_path_).doc("The path to the .world file.");
     this->addProperty("sim_step_dt",sim_step_dt_).doc("The amount of time in seconds simulated at each time step (usually 1ms)");
     this->addOperation("setWorldFilePath",&RTTGazeboEmbedded::setWorldFilePath,this,RTT::OwnThread).doc("Sets the file to the world file");
     this->addOperation("add_plugin",&RTTGazeboEmbedded::addPlugin,this,RTT::OwnThread).doc("DEPRECATED, use addPlugin The path to a plugin file.");
     this->addOperation("addPlugin",&RTTGazeboEmbedded::addPlugin,this,RTT::OwnThread).doc("The path to a plugin file.");
-    this->addProperty("argv",argv).doc("argv passed to the deployer's main.");
-    this->addAttribute("gravity_vector",gravity_vector);//.doc("The gravity vector from gazebo, available after configure().");
+    this->addProperty("argv",argv_).doc("argv passed to the deployer's main.");
+    this->addAttribute("gravity_vector",gravity_vector_);//.doc("The gravity vector from gazebo, available after configure().");
     this->addOperation("spawnModel", &RTTGazeboEmbedded::spawnModel, this,
             RTT::OwnThread).doc(
             "The instance name of the model to be spawned and then the model name.");
@@ -87,58 +87,61 @@ gravity_vector(3)
 
 std::vector<double> RTTGazeboEmbedded::getGravity()
 {
-    if (!world)
+    if (!world_)
     {
         RTT::log(RTT::Error)
                 << "The world pointer was not yet retrieved. This needs to be done first, in order to be able to call this operation."
                 << RTT::endlog();
         return {0,0,0};
     }
-    auto grav = world->GetPhysicsEngine()->GetGravity();
-    gravity_vector[0] = grav[0];
-    gravity_vector[1] = grav[1];
-    gravity_vector[2] = grav[2];
-    return gravity_vector;
+#if GAZEBO_MAJOR_VERSION > 8
+    auto grav = world_->Gravity();
+#else
+    auto grav = world_->GetPhysicsEngine()->GetGravity();
+#endif
+    gravity_vector_[0] = grav[0];
+    gravity_vector_[1] = grav[1];
+    gravity_vector_[2] = grav[2];
+    return gravity_vector_;
 }
 
 double RTTGazeboEmbedded::getMaxStepSize()
 {
-    if (!world)
+    if (!world_)
     {
         RTT::log(RTT::Error)
                 << "The world pointer was not yet retrieved. This needs to be done first, in order to be able to call this operation."
                 << RTT::endlog();
         return 0;
     }
-    sim_step_dt_ = world->GetPhysicsEngine()->GetMaxStepSize();
+#if GAZEBO_MAJOR_VERSION > 8
+    sim_step_dt_ = world_->Physics()->GetMaxStepSize();
+#else
+    sim_step_dt_ = world_->GetPhysicsEngine()->GetMaxStepSize();
+#endif
     return sim_step_dt_;
 }
 
 void RTTGazeboEmbedded::listModels()
 {
-    if (!world)
+    if (!world_)
     {
         RTT::log(RTT::Error)
                 << "The world pointer was not yet retrieved. This needs to be done first, in order to be able to call this operation."
                 << RTT::endlog();
         return;
     }
-    for(auto model : world->GetModels())
-    {
+#if GAZEBO_MAJOR_VERSION > 8
+    for(auto model : world_->Models())
         std::cout << "  - " << model->GetName() << std::endl;
-    }
+#else
+    for(auto model : world_->GetModels())
+        std::cout << "  - " << model->GetName() << std::endl;
+#endif
 }
 
 bool RTTGazeboEmbedded::insertModelFromURDF(const std::string& urdf_url)
 {
-    if (!world)
-    {
-        RTT::log(RTT::Error)
-                << "The world pointer was not yet retrieved. This needs to be done first, in order to be able to call this operation."
-                << RTT::endlog();
-        return false;
-    }
-
     log(RTT::Info) << "Inserting model file " << urdf_url << endlog();
 
     TiXmlDocument doc(urdf_url);
@@ -148,13 +151,6 @@ bool RTTGazeboEmbedded::insertModelFromURDF(const std::string& urdf_url)
 
 bool RTTGazeboEmbedded::insertModelFromURDFString(const std::string& urdf_str)
 {
-    if (!world)
-    {
-        RTT::log(RTT::Error)
-                << "The world pointer was not yet retrieved. This needs to be done first, in order to be able to call this operation."
-                << RTT::endlog();
-        return false;
-    }
     TiXmlDocument doc;
     doc.Parse(urdf_str.c_str());
     return insertModelFromTinyXML(static_cast<void *>(&doc));
@@ -162,9 +158,17 @@ bool RTTGazeboEmbedded::insertModelFromURDFString(const std::string& urdf_str)
 
 bool RTTGazeboEmbedded::insertModelFromTinyXML(void * tiny_xml_doc)
 {
+    if (!world_)
+    {
+        log(RTT::Error)
+            << "The world pointer was not yet retrieved. This needs to be done first, in order to be able to call this operation."
+            << endlog();
+        return false;
+    }
+    
     if(!tiny_xml_doc)
     {
-        RTT::log(RTT::Error) << "Document provided is null" << RTT::endlog();
+        log(RTT::Error) << "Document provided is null" << endlog();
         return false;
     }
 
@@ -210,7 +214,7 @@ bool RTTGazeboEmbedded::insertModelFromTinyXML(void * tiny_xml_doc)
 
     log(RTT::Info) << "Inserting model " << robot_name << " in the current world" << endlog();
     log(RTT::Debug) << "Inserting URDF String " << xmltext << endlog();
-    world->InsertModelString(xmltext);
+    world_->InsertModelString(xmltext);
 
     std::atomic<bool> do_exit(false);
 
@@ -235,9 +239,14 @@ bool RTTGazeboEmbedded::insertModelFromTinyXML(void * tiny_xml_doc)
     for (size_t i = 0; i < 10; i++)
     {
         log(RTT::Debug) << "Runing the world once... " << endlog();
-        gazebo::runWorld(world,1);
+        gazebo::runWorld(world_,1);
         log(RTT::Debug) << "Done runing the world once, verifying if the model is correctly loaded..." << endlog();
-        if(world->GetModel(robot_name))
+#if GAZEBO_MAJOR_VERSION > 8
+        auto model = world_->ModelByName(robot_name);
+#else
+        auto model = world_->GetModel(robot_name);
+#endif
+        if(model)
         {
             do_exit = true;
             if(th.joinable())
@@ -264,48 +273,48 @@ void RTTGazeboEmbedded::addPlugin(const std::string& filename)
 void RTTGazeboEmbedded::setWorldFilePath(const std::string& file_path)
 {
     if(std::ifstream(file_path))
-        world_path = file_path;
+        world_path_ = file_path;
     else
         log(RTT::Error) << "File "<<file_path<<"does not exists."<< endlog();
 }
 
 bool RTTGazeboEmbedded::resetModelPoses()
 {
-    if (!world)
+    if (!world_)
     {
-        RTT::log(RTT::Error)
-                << "The world pointer was not yet retrieved. This needs to be done first, in order to be able to call this operation."
-                << RTT::endlog();
+        log(RTT::Error)
+            << "The world pointer was not yet retrieved. This needs to be done first, in order to be able to call this operation."
+            << endlog();
         return false;
     }
 
-    this->world->ResetEntities(gazebo::physics::Base::MODEL);
+    this->world_->ResetEntities(gazebo::physics::Base::MODEL);
     return true;
 }
 
 bool RTTGazeboEmbedded::resetWorld()
 {
-    if (!world)
+    if (!world_)
     {
-        RTT::log(RTT::Error)
-                << "The world pointer was not yet retrieved. This needs to be done first, in order to be able to call this operation."
-                << RTT::endlog();
+        log(RTT::Error)
+            << "The world pointer was not yet retrieved. This needs to be done first, in order to be able to call this operation."
+            << endlog();
         return false;
     }
 
-    this->world->Reset();
+    this->world_->Reset();
     return true;
 }
 
 void RTTGazeboEmbedded::OnPause(const bool _pause) {
     if (_pause) {
         if (this->isRunning()) {
-            if (!is_paused)
+            if (!is_paused_)
                 this->stop();
         }
     } else {
         if (!this->isRunning()) {
-            if (is_paused)
+            if (is_paused_)
                 this->start();
         }
     }
@@ -314,7 +323,7 @@ void RTTGazeboEmbedded::OnPause(const bool _pause) {
 bool RTTGazeboEmbedded::spawnModel(const std::string& instanceName,
         const std::string& modelName, const int timeoutSec)
 {
-    if (!world)
+    if (!world_)
     {
         RTT::log(RTT::Error)
                 << "The world pointer was not yet retrieved. This needs to be done first, in order to be able to call this operation."
@@ -364,11 +373,11 @@ bool RTTGazeboEmbedded::spawnModel(const std::string& instanceName,
             // handle sdf
             sdf::SDF root;
             root.SetFromString(model_xml);
-            #ifdef GAZEBO_GREATER_6
+#if GAZEBO_MAJOR_VERSION >= 6
               sdf::ElementPtr nameElementSDF = root.Root()->GetElement("model");
-            #else
+#else
               sdf::ElementPtr nameElementSDF = root.root->GetElement("model");
-            #endif
+#endif
             nameElementSDF->GetAttribute("name")->SetFromString(instanceName);
         }
     } else {
@@ -387,7 +396,7 @@ bool RTTGazeboEmbedded::spawnModel(const std::string& instanceName,
     printer.SetIndent("    ");
     gazebo_model_xml.Accept(&printer);
 
-    world->InsertModelString(printer.CStr());
+    world_->InsertModelString(printer.CStr());
 
     gazebo::common::Time timeout((double) timeoutSec);
 
@@ -404,13 +413,17 @@ bool RTTGazeboEmbedded::spawnModel(const std::string& instanceName,
         }
 
         {
-            //boost::recursive_mutex::scoped_lock lock(*world->GetMRMutex());
-            if (world->GetModel(instanceName)) {
+#if GAZEBO_MAJOR_VERSION > 8
+            auto model = world_->ModelByName(instanceName);
+#else
+            auto model = world_->GetModel(instanceName);
+#endif
+            if (model){
                 modelDeployTimer->Stop();
                 break;
             }
         }
-        usleep(2000);
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
 
     return true;
@@ -419,23 +432,27 @@ bool RTTGazeboEmbedded::spawnModel(const std::string& instanceName,
 
 bool RTTGazeboEmbedded::toggleDynamicsSimulation(const bool activate)
 {
-    if (!world)
+    if (!world_)
     {
         RTT::log(RTT::Error)
                 << "The world pointer was not yet retrieved. This needs to be done first, in order to be able to call this operation."
                 << RTT::endlog();
         return false;
     }
-    world->EnablePhysicsEngine(activate);
+#if GAZEBO_MAJOR_VERSION > 8
+    world_->SetPhysicsEnabled(activate);
+#else
+    world_->EnablePhysicsEngine(activate);
+#endif
     return true;
 }
 
 bool RTTGazeboEmbedded::configureHook()
 {
-    log(RTT::Info) << "Creating world at "<< world_path <<  endlog();
+    log(RTT::Info) << "Creating world at "<< world_path_ <<  endlog();
 
     try{
-        if(! gazebo::setupServer(argv))
+        if(! gazebo::setupServer(argv_))
         {
             log(RTT::Error) << "Could not setupServer " <<  endlog();
             return false;
@@ -445,30 +462,41 @@ bool RTTGazeboEmbedded::configureHook()
         return false;
     }
 
-    world = gazebo::loadWorld(world_path);
+    world_ = gazebo::loadWorld(world_path_);
 
-    if (!world)
+    if (!world_)
     {
         RTT::log(RTT::Error)
                 << "Could not load the world."
                 << RTT::endlog();
         return false;
     }
+#if GAZEBO_MAJOR_VERSION > 8
+    sim_step_dt_ = world_->Physics()->GetMaxStepSize();
 
-    sim_step_dt_ = world->GetPhysicsEngine()->GetMaxStepSize();
+    gravity_vector_[0] = world_->Gravity()[0];
+    gravity_vector_[1] = world_->Gravity()[1];
+    gravity_vector_[2] = world_->Gravity()[2];
+#else
+    sim_step_dt_ = world_->GetPhysicsEngine()->GetMaxStepSize();
 
-    gravity_vector[0] = world->GetPhysicsEngine()->GetGravity()[0];
-    gravity_vector[1] = world->GetPhysicsEngine()->GetGravity()[1];
-    gravity_vector[2] = world->GetPhysicsEngine()->GetGravity()[2];
-
-    n_sensors = 0;
-    for(auto model : world->GetModels())
-        n_sensors += model->GetSensorCount();
+    gravity_vector_[0] = world_->GetPhysicsEngine()->GetGravity()[0];
+    gravity_vector_[1] = world_->GetPhysicsEngine()->GetGravity()[1];
+    gravity_vector_[2] = world_->GetPhysicsEngine()->GetGravity()[2];
+#endif
+    n_sensors_ = 0;
+#if GAZEBO_MAJOR_VERSION > 8
+    for(auto model : world_->Models())
+        n_sensors_ += model->GetSensorCount();
+#else
+    for(auto model : world_->GetModels())
+        n_sensors_ += model->GetSensorCount();
+#endif
     //log(RTT::Info) << "Binding world events" <<  endlog();
-    world_begin =  gazebo::event::Events::ConnectWorldUpdateBegin(std::bind(&RTTGazeboEmbedded::WorldUpdateBegin,this));
-    world_end = gazebo::event::Events::ConnectWorldUpdateEnd(std::bind(&RTTGazeboEmbedded::WorldUpdateEnd,this));
+    world_begin_ =  gazebo::event::Events::ConnectWorldUpdateBegin(std::bind(&RTTGazeboEmbedded::WorldUpdateBegin,this));
+    world_end_ = gazebo::event::Events::ConnectWorldUpdateEnd(std::bind(&RTTGazeboEmbedded::WorldUpdateEnd,this));
 
-    pause = gazebo::event::Events::ConnectPause(
+    pause_ = gazebo::event::Events::ConnectPause(
         boost::bind(&RTTGazeboEmbedded::OnPause, this, _1));
 
     return true;
@@ -477,11 +505,11 @@ bool RTTGazeboEmbedded::configureHook()
 
 bool RTTGazeboEmbedded::startHook()
 {
-    if(!run_th.joinable())
-        run_th = std::thread(
+    if(!run_th_.joinable())
+        run_th_ = std::thread(
             std::bind(&RTTGazeboEmbedded::runWorldForever,this));
     else{
-        is_paused = false;
+        is_paused_ = false;
         unPauseSimulation();
     }
     return true;
@@ -490,14 +518,14 @@ bool RTTGazeboEmbedded::startHook()
 void RTTGazeboEmbedded::runWorldForever()
 {
     cout <<"\x1B[32m[[--- Gazebo running ---]]\033[0m"<< endl;
-    gazebo::runWorld(world, 0); // runs forever
+    gazebo::runWorld(world_, 0); // runs forever
     cout <<"\x1B[32m[[--- Gazebo exiting runWorld() ---]]\033[0m"<< endl;
 }
 
 void RTTGazeboEmbedded::updateHook()
 {
-    if(use_rtt_sync)
-        go_sem.signal();
+    if(use_rtt_sync_)
+        go_sem_.signal();
     return;
 }
 
@@ -515,8 +543,8 @@ void RTTGazeboEmbedded::unPauseSimulation()
 
 void RTTGazeboEmbedded::stopHook()
 {
-    if(!use_rtt_sync){
-        is_paused = true;
+    if(!use_rtt_sync_){
+        is_paused_ = true;
         pauseSimulation();
     }
 }
@@ -524,11 +552,15 @@ void RTTGazeboEmbedded::stopHook()
 void RTTGazeboEmbedded::WorldUpdateBegin()
 {
     int tmp_sensor_count = 0;
-    for(auto model : world->GetModels())
+#if GAZEBO_MAJOR_VERSION > 8    
+    for(auto model : world_->Models())
         tmp_sensor_count += model->GetSensorCount();
-
+#else
+    for(auto model : world_->GetModels())
+        tmp_sensor_count += model->GetSensorCount();
+#endif
     do{
-        if(tmp_sensor_count > n_sensors)
+        if(tmp_sensor_count > n_sensors_)
         {
             if (!gazebo::sensors::load())
             {
@@ -542,14 +574,14 @@ void RTTGazeboEmbedded::WorldUpdateBegin()
             }
             gazebo::sensors::run_once(true);
             gazebo::sensors::run_threads();
-            n_sensors = tmp_sensor_count;
+            n_sensors_ = tmp_sensor_count;
         }else{
             // NOTE: same number, we do nothing, less it means we removed a model
-            n_sensors = tmp_sensor_count;
+            n_sensors_ = tmp_sensor_count;
         }
     }while(false);
 
-    if(n_sensors > 0)
+    if(n_sensors_ > 0)
     {
         gazebo::sensors::run_once();
     }
@@ -557,21 +589,21 @@ void RTTGazeboEmbedded::WorldUpdateBegin()
 
 void RTTGazeboEmbedded::WorldUpdateEnd()
 {
-    if(use_rtt_sync)
-        go_sem.wait();
+    if(use_rtt_sync_)
+        go_sem_.wait();
 }
 
 void RTTGazeboEmbedded::cleanupHook()
 {
     gazebo::event::Events::sigInt.Signal();
     cout <<"\x1B[32m[[--- Stoping Simulation ---]]\033[0m"<< endl;
-    if(world)
-      world->Fini();
+    if(world_)
+      world_->Fini();
     cout <<"\x1B[32m[[--- Gazebo Shutdown... ---]]\033[0m"<< endl;
     //NOTE: This crashes as gazebo is running is a thread
     gazebo::shutdown();
-    if(run_th.joinable())
-        run_th.join();
+    if(run_th_.joinable())
+        run_th_.join();
 
     cout <<"\x1B[32m[[--- Exiting Gazebo ---]]\033[0m"<< endl;
 }

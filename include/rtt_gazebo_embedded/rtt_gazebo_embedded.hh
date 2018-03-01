@@ -51,24 +51,21 @@ protected:
     bool insertModelFromURDFString(const std::string& urdf_str);
     bool insertModelFromTinyXML(void * tiny_xml_doc);
 
-    std::string world_path;
-    gazebo::physics::WorldPtr world;
-    gazebo::event::ConnectionPtr world_begin;
-    gazebo::event::ConnectionPtr world_end;
-    gazebo::event::ConnectionPtr pause;
+    std::string world_path_ = "worlds/empty.world";
+    gazebo::physics::WorldPtr world_;
+    gazebo::event::ConnectionPtr world_begin_;
+    gazebo::event::ConnectionPtr world_end_;
+    gazebo::event::ConnectionPtr pause_;
 
-    std::vector<double> gravity_vector;
-    std::vector<std::string> argv;
-    std::atomic<bool> stop_sensor_th;
-    bool use_rtt_sync = false;
-    RTT::os::Semaphore go_sem;
-
-    std::thread run_th;
-
-    std::atomic<bool> is_paused;
-
-    bool is_world_configured = false;
-    int n_sensors = 0;
+    std::vector<double> gravity_vector_ = {0,0,0};
+    std::vector<std::string> argv_;
+    std::atomic<bool> stop_sensor_th_ = {0};
+    bool use_rtt_sync_ = false;
+    RTT::os::Semaphore go_sem_ = RTT::os::Semaphore(0);
+    std::thread run_th_;
+    std::atomic<bool> is_paused_ = {0};
+    bool is_world_configured_ = false;
+    int n_sensors_ = 0;
     double sim_step_dt_ = 0;
 };
 
